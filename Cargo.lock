@@ -874,6 +874,7 @@ dependencies = [
  "h3",
  "h3-quinn",
  "http",
+ "http-body",
  "quinn",
  "rustls",
  "rustls-native-certs",

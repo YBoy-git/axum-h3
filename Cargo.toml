@@ -18,6 +18,7 @@ futures = "0.3"
 h3 = "0.0.6"
 h3-quinn = { version = "0.0.7", features = ["tracing"] }
 http = "1"
+http-body = "1"
 quinn = { version = "0.11", default-features = false, features = [
     "runtime-tokio",
     "rustls",

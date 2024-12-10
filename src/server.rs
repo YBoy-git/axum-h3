@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, str::FromStr, sync::Arc};
+use std::{future::poll_fn, net::SocketAddr, pin::pin, str::FromStr, sync::Arc};
 
 use axum::{routing::get, Router};
 use bytes::Bytes;
@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn core::error::Error>> {
                                 let router = Arc::clone(&router);
 
                                 tokio::spawn(async move {
-                                    let resp = router
+                                    let (parts, body) = router
                                         .lock()
                                         .await
                                         .as_service()
@@ -76,15 +76,30 @@ async fn main() -> Result<(), Box<dyn core::error::Error>> {
                                         .unwrap()
                                         .call(req)
                                         .await
-                                        .unwrap();
+                                        .unwrap()
+                                        .into_parts();
 
                                     stream
-                                        .send_response(http::Response::from_parts(
-                                            resp.into_parts().0,
-                                            (),
-                                        ))
+                                        .send_response(http::Response::from_parts(parts, ()))
                                         .await
                                         .unwrap();
+
+                                    let mut body = pin!(body);
+
+                                    while let Some(chunk) = {
+                                        poll_fn(|ctx| {
+                                            <axum::body::Body as http_body::Body>::poll_frame(
+                                                body.as_mut(),
+                                                ctx,
+                                            )
+                                        })
+                                        .await
+                                    } {
+                                        stream
+                                            .send_data(chunk.unwrap().into_data().unwrap())
+                                            .await
+                                            .unwrap();
+                                    }
 
                                     stream.finish().await.unwrap();
                                 });
